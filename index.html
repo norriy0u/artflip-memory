@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Gallery - Curated Memory Match</title>
+    <style>
+        /* ===== IMPORTS & VARIABLES ===== */
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Lato:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-museum: #FAFAFA;
+            --card-back: #1A1A2E;
+            --text-dark: #111111;
+            --text-light: #FAFAFA;
+            --gold: #D4AF37;
+            --font-title: 'Cormorant Garamond', serif;
+            --font-ui: 'Lato', sans-serif;
+            --accent: #D4AF37; /* Default, overridden by theme */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background-color: var(--bg-museum);
+            font-family: var(--font-ui); color: var(--text-dark);
+            user-select: none;
+        }
+
+        /* ===== SCREENS ===== */
+        .screen {
+            position: fixed; inset: 0; display: none; z-index: 10;
+        }
+        .screen.active { display: flex; flex-direction: column; }
+
+        /* ===== BACKGROUNDS ===== */
+        /* Marble Texture for Entry */
+        .marble-bg {
+            position: absolute; inset: 0; z-index: -1;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+        }
+        .marble-bg::after {
+            content: ''; position: absolute; inset: 0; opacity: 0.15;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            mix-blend-mode: multiply;
+        }
+
+        /* ===== GALLERY ENTRANCE (THEME SELECT) ===== */
+        #entrance-screen { align-items: center; justify-content: center; overflow: hidden; }
+        
+        .entrance-title {
+            position: absolute; top: 10%; text-align: center;
+            font-family: var(--font-title); font-size: 3.5rem; font-weight: 300; letter-spacing: 4px;
+        }
+
+        .gallery-wall {
+            display: flex; gap: 60px; perspective: 1200px;
+            margin-top: 50px; z-index: 5;
+        }
+
+        .frame-container {
+            display: flex; flex-direction: column; align-items: center;
+            transform-style: preserve-3d; transition: transform 0.6s ease;
+        }
+
+        /* Perspective tilt */
+        .frame-container:nth-child(1) { transform: rotateY(15deg); }
+        .frame-container:nth-child(3) { transform: rotateY(-15deg); }
+
+        .frame-door {
+            width: 200px; height: 320px;
+            border: 8px solid #222; border-radius: 2px;
+            box-shadow: 15px 15px 30px rgba(0,0,0,0.15), inset 0 0 20px rgba(0,0,0,0.5);
+            background-size: cover; background-position: center;
+            cursor: pointer; position: relative;
+            transform-origin: left; transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Spotlight Hover */
+        .frame-door::after {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.4) 0%, transparent 60%);
+            opacity: 0; transition: opacity 0.4s;
+        }
+        .frame-door:hover::after { opacity: 1; }
+        
+        /* Door Opening Animation */
+        .frame-door.opening { transform: rotateY(-105deg); pointer-events: none; }
+
+        .label-card {
+            margin-top: 30px; padding: 10px 20px;
+            background: #fff; border: 1px solid #ddd; box-shadow: 2px 4px 10px rgba(0,0,0,0.05);
+            font-family: var(--font-title); font-size: 1.2rem; font-style: italic;
+            text-align: center; position: relative;
+        }
+        .label-card::before {
+            content: ''; position: absolute; top: -15px; left: 50%; width: 2px; height: 15px;
+            background: #aaa;
+        }
+
+        /* Velvet Rope */
+        .velvet-rope {
+            position: absolute; bottom: 15%; left: 0; right: 0; height: 80px; z-index: 10;
+            display: flex; align-items: flex-end; justify-content: space-around;
+        }
+        .stanchion {
+            width: 12px; height: 100px; background: linear-gradient(90deg, #B8860B, #FFD700, #B8860B);
+            border-radius: 6px 6px 0 0; position: relative;
+            box-shadow: 3px 0 10px rgba(0,0,0,0.2);
+        }
+        .stanchion::before {
+            content: ''; position: absolute; top: -10px; left: -4px; width: 20px; height: 20px;
+            border-radius: 50%; background: radial-gradient(circle at top left, #FFD700, #B8860B);
+        }
+        .rope-curve {
+            position: absolute; top: 15px; width: calc(50% - 20px); height: 40px;
+            border-bottom: 8px solid #990000; border-radius: 50%;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2); pointer-events: none;
+        }
+        .rope-curve.left { left: 10px; }
+        .rope-curve.right { right: 10px; }
+
+        /* ===== GAME HUD ===== */
+        .progress-line {
+            position: absolute; top: 0; left: 0; height: 3px; background: var(--accent);
+            width: 0%; transition: width 0.5s ease; z-index: 50;
+        }
+        .hud {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 2.5vh 5vw; border-bottom: 1px solid rgba(0,0,0,0.05);
+            font-family: var(--font-title); font-size: 1.4rem; color: #555;
+            background: rgba(250,250,250,0.9); backdrop-filter: blur(5px); z-index: 20;
+        }
+        .hud-val { font-weight: 600; color: var(--text-dark); }
+        
+        .btn-exit {
+            background: none; border: none; font-family: var(--font-ui); text-transform: uppercase;
+            font-size: 0.8rem; letter-spacing: 2px; cursor: pointer; color: #888; transition: color 0.3s;
+        }
+        .btn-exit:hover { color: var(--danger); }
+
+        /* ===== GAME BOARD ===== */
+        .board-container {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            padding: 20px; background: #EFEFEF; box-shadow: inset 0 10px 30px rgba(0,0,0,0.03);
+            perspective: 1000px; position: relative; min-height: 80vh; width: 100%;
+        }
+
+        .grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 15px; width: 100%; height: 100%; max-width: 800px; max-height: 800px;
+            z-index: 10; margin: 0 auto;
+        }
+
+        /* ===== CARDS ===== */
+        .card {
+            background: transparent; width: 100%; height: 100%; cursor: pointer;
+            position: relative; transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s;
+            border-radius: 4px; border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .card-face {
+            position: absolute; inset: 0; backface-visibility: hidden;
+            border-radius: 4px; box-shadow: 2px 4px 12px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        /* Back of card */
+        .card-back {
+            background: var(--card-back);
+            display: flex; justify-content: center; align-items: center;
+            position: relative;
+        }
+        
+        /* Theme Patterns */
+        .theme-madhubani .card-back {
+            background-image: radial-gradient(var(--accent) 2px, transparent 2px), radial-gradient(var(--accent) 2px, transparent 2px);
+            background-size: 20px 20px; background-position: 0 0, 10px 10px;
+        }
+        .theme-ukiyoe .card-back {
+            background: repeating-linear-gradient(45deg, var(--card-back) 0, var(--card-back) 10px, var(--accent) 10px, var(--accent) 12px);
+        }
+        .theme-postimp .card-back {
+            background: radial-gradient(circle at 50% 50%, var(--card-back) 20%, var(--accent) 100%);
+        }
+
+        /* Front of card */
+        .card-front {
+            transform: rotateY(180deg); background: #fff;
+            padding: 8px; /* The white museum matting */
+            display: flex; flex-direction: column;
+        }
+        .card-art {
+            flex: 1; border: 2px solid var(--gold); border-radius: 2px;
+            background-size: cover; background-position: center;
+        }
+
+        /* Flip Action */
+        .card.flipped { transform: rotateY(180deg); box-shadow: 5px 10px 20px rgba(0,0,0,0.15); }
+        
+        /* Match Action */
+        .card.matched {
+            transform: rotateY(180deg) translateY(-8px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.2), 0 0 20px var(--gold);
+            pointer-events: none; border-color: var(--gold);
+        }
+
+        /* Mismatch Shake */
+        .card.shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake {
+            0%, 100% { transform: rotateY(180deg) translateX(0); }
+            25% { transform: rotateY(180deg) translateX(-5px) rotate(-2deg); }
+            75% { transform: rotateY(180deg) translateX(5px) rotate(2deg); }
+        }
+
+        /* Particle Canvas */
+        #sparkle-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+
+        /* ===== COMPLETION SCREEN ===== */
+        #end-screen {
+            justify-content: center; align-items: center; background: rgba(250,250,250,0.95);
+            backdrop-filter: blur(10px); transform: translateY(-100%);
+            transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #end-screen.active { transform: translateY(0); }
+
+        .end-card {
+            background: #fff; padding: 50px 60px; border: 1px solid #ddd;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1); text-align: center; max-width: 500px;
+        }
+        .end-title { font-family: var(--font-title); font-size: 3rem; color: var(--text-dark); margin-bottom: 10px; font-weight: 300; }
+        .end-divider { width: 50px; height: 2px; background: var(--gold); margin: 20px auto; }
+        
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; text-align: left; }
+        .stat-label { font-family: var(--font-ui); font-size: 0.8rem; text-transform: uppercase; color: #888; letter-spacing: 2px; }
+        .stat-val { font-family: var(--font-title); font-size: 2.5rem; color: var(--text-dark); }
+
+        .medal {
+            width: 60px; height: 60px; margin: 0 auto 20px;
+            background: radial-gradient(circle at top left, #FFD700, #B8860B);
+            border-radius: 50%; border: 2px solid #FFF; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            position: relative; display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-title); font-size: 1.5rem; color: #FFF;
+        }
+        .medal::after {
+            content: ''; position: absolute; top: -15px; left: 20px; width: 20px; height: 30px;
+            background: #900; z-index: -1; transform: skewY(-20deg);
+        }
+
+        .btn-replay {
+            padding: 15px 40px; background: #111; color: #FFF; border: none;
+            font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 2px;
+            cursor: pointer; transition: background 0.3s;
+        }
+        .btn-replay:hover { background: var(--gold); }
+
+        /* Responsive */
+        @media (max-width: 800px) {
+            .gallery-wall { flex-direction: column; gap: 40px; margin-top: 150px; perspective: none; }
+            .frame-container { transform: none !important; }
+            .velvet-rope { display: none; }
+            .entrance-title { font-size: 2.5rem; top: 5%; }
+            .grid { gap: 10px; width: 95vw; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CSS Marble BG -->
+    <div class="marble-bg"></div>
+
+    <!-- ===== ENTRANCE (THEME SELECT) ===== -->
+    <div id="entrance-screen" class="screen active">
+        <h1 class="entrance-title">Select Exhibition</h1>
+        
+        <div class="gallery-wall">
+            <!-- Theme 1 -->
+            <div class="frame-container">
+                <div class="frame-door" data-theme="madhubani" data-color="#D9534F" style="background-image: url('https://image.pollinations.ai/prompt/madhubani_art_painting_wall?seed=121&width=200&height=320')"></div>
+                <div class="label-card">Madhubani</div>
+            </div>
+
+            <!-- Theme 2 -->
+            <div class="frame-container">
+                <div class="frame-door" data-theme="ukiyoe" data-color="#5F9EA0" style="background-image: url('https://image.pollinations.ai/prompt/ukiyo_e_japanese_wave_print?seed=42&width=200&height=320')"></div>
+                <div class="label-card">Ukiyo-e</div>
+            </div>
+
+            <!-- Theme 3 -->
+            <div class="frame-container">
+                <div class="frame-door" data-theme="postimp" data-color="#4169E1" style="background-image: url('https://image.pollinations.ai/prompt/post_impressionist_oil_painting_starry?seed=77&width=200&height=320')"></div>
+                <div class="label-card">Post-Impressionism</div>
+            </div>
+        </div>
+
+        <div class="velvet-rope">
+            <div class="stanchion"><div class="rope-curve left"></div></div>
+            <div class="stanchion"><div class="rope-curve right"></div></div>
+            <div class="stanchion"></div>
+        </div>
+    </div>
+
+    <!-- ===== GAME SCREEN ===== -->
+    <div id="game-screen" class="screen">
+        <div class="progress-line" id="progress-line"></div>
+        
+        <div class="hud">
+            <div>Moves: <span class="hud-val" id="moves-val">0</span></div>
+            <button class="btn-exit" onclick="location.reload()">Exit Gallery</button>
+            <div>Time: <span class="hud-val" id="time-val">00:00</span></div>
+        </div>
+
+        <div class="board-container" id="board-container">
+            <canvas id="sparkle-canvas"></canvas>
+            <div class="grid" id="game-grid">
+                <!-- Cards generated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== END SCREEN ===== -->
+    <div id="end-screen" class="screen">
+        <div class="end-card">
+            <div class="medal">I</div>
+            <h2 class="end-title">Collection Complete</h2>
+            <div class="end-divider"></div>
+            
+            <div class="stat-grid">
+                <div>
+                    <div class="stat-label">Total Time</div>
+                    <div class="stat-val" id="end-time">00:00</div>
+                </div>
+                <div>
+                    <div class="stat-label">Moves Taken</div>
+                    <div class="stat-val" id="end-moves">0</div>
+                </div>
+            </div>
+            
+            <p style="font-family:var(--font-ui); color:#888; font-style:italic; margin-bottom:30px;" id="performance-text">A masterful display of intellect.</p>
+            
+            <button class="btn-replay" onclick="location.reload()">Visit Another Gallery</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== AUDIO ENGINE (Web Audio API) =====
+        let audioCtx;
+        let ambientOsc = [];
+        
+        function initAudio(theme) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // Stop old
+            ambientOsc.forEach(n => { try { n.stop(); } catch(e){} });
+            ambientOsc = [];
+
+            // Procedural Drone based on theme
+            const masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.15;
+            masterGain.connect(audioCtx.destination);
+
+            let freqs = [];
+            if(theme === 'madhubani') freqs = [146.83, 220.00, 293.66]; // D minor drone (Sitar feel)
+            else if(theme === 'ukiyoe') freqs = [196.00, 246.94, 293.66]; // G major (Koto feel)
+            else freqs = [130.81, 196.00, 329.63]; // C major chord
+
+            freqs.forEach(f => {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = f;
+                
+                // Add slow tremolo for "shimmer"
+                const lfo = audioCtx.createOscillator();
+                const lfoGain = audioCtx.createGain();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.5 + Math.random()*0.5;
+                lfoGain.gain.value = masterGain.gain.value * 0.4;
+                lfo.connect(lfoGain.gain);
+                
+                const finalGain = audioCtx.createGain();
+                finalGain.gain.value = masterGain.gain.value;
+                lfoGain.connect(finalGain.gain);
+                
+                osc.connect(finalGain);
+                finalGain.connect(audioCtx.destination);
+                
+                osc.start(); lfo.start();
+                ambientOsc.push(osc, lfo);
+            });
+        }
+
+        function playDing() {
+            if(!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 1);
+            g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 1);
+        }
+
+        // ===== GAME LOGIC =====
+        const state = {
+            theme: '',
+            prompts: {
+                madhubani: 'madhubani_art_painting_detailed_hd',
+                ukiyoe: 'ukiyo_e_woodblock_art_print_traditional',
+                postimp: 'post_impressionist_oil_painting_thick_strokes'
+            },
+            cards: [],
+            flipped: [],
+            matchedPairs: 0,
+            moves: 0,
+            timer: 0,
+            interval: null,
+            locked: false
+        };
+
+        const gridEl = document.getElementById('game-grid');
+        const movesEl = document.getElementById('moves-val');
+        const timeEl = document.getElementById('time-val');
+        const progressEl = document.getElementById('progress-line');
+
+        // Setup theme selection doors
+        document.querySelectorAll('.frame-door').forEach(door => {
+            door.addEventListener('click', function() {
+                const theme = this.dataset.theme;
+                const color = this.dataset.color;
+                
+                document.documentElement.style.setProperty('--accent', color);
+                document.getElementById('board-container').className = `board-container theme-${theme}`;
+                
+                // Animate door open
+                this.classList.add('opening');
+                initAudio(theme);
+                
+                setTimeout(() => {
+                    document.getElementById('entrance-screen').classList.remove('active');
+                    document.getElementById('game-screen').classList.add('active');
+                    startGame(theme);
+                }, 800);
+            });
+        });
+
+        function startGame(theme) {
+            state.theme = theme;
+            state.moves = 0;
+            state.matchedPairs = 0;
+            state.flipped = [];
+            state.locked = false;
+            
+            // Start Timer
+            state.timer = 0;
+            clearInterval(state.interval);
+            state.interval = setInterval(() => {
+                state.timer++;
+                const m = String(Math.floor(state.timer / 60)).padStart(2, '0');
+                const s = String(state.timer % 60).padStart(2, '0');
+                timeEl.textContent = `${m}:${s}`;
+            }, 1000);
+
+            // Generate 8 unique image seeds
+            let seeds = [];
+            while(seeds.length < 8) {
+                let r = Math.floor(Math.random() * 1000) + 1;
+                if(seeds.indexOf(r) === -1) seeds.push(r);
+            }
+            
+            // Double and shuffle
+            state.cards = [...seeds, ...seeds].sort(() => 0.5 - Math.random());
+            
+            renderBoard();
+            resizeCanvas();
+        }
+
+        function renderBoard() {
+            gridEl.innerHTML = '';
+            const prompt = state.prompts[state.theme];
+            
+            state.cards.forEach((seed, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.dataset.id = index;
+                card.dataset.val = seed;
+                
+                // Using Picsum for reliable, instant premium photography (no AI generation rate limits)
+                const url = `https://picsum.photos/seed/${state.theme}_${seed}/150/200`;
+                
+                card.innerHTML = `
+                    <div class="card-face card-back"></div>
+                    <div class="card-face card-front">
+                        <div class="card-art" style="background-image: url('${url}')"></div>
+                    </div>
+                `;
+                
+                card.addEventListener('click', () => handleCardClick(card));
+                gridEl.appendChild(card);
+            });
+        }
+
+        function handleCardClick(card) {
+            if(state.locked) return;
+            if(card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+            card.classList.add('flipped');
+            state.flipped.push(card);
+
+            if(state.flipped.length === 2) {
+                state.moves++;
+                movesEl.textContent = state.moves;
+                state.locked = true;
+                
+                checkForMatch();
+            }
+        }
+
+        function checkForMatch() {
+            const [c1, c2] = state.flipped;
+            
+            if(c1.dataset.val === c2.dataset.val) {
+                // Match
+                setTimeout(() => {
+                    c1.classList.add('matched');
+                    c2.classList.add('matched');
+                    state.matchedPairs++;
+                    progressEl.style.width = `${(state.matchedPairs / 8) * 100}%`;
+                    
+                    playDing();
+                    createSparkles(c1); createSparkles(c2);
+
+                    state.flipped = [];
+                    state.locked = false;
+
+                    if(state.matchedPairs === 8) endGame();
+                }, 500);
+            } else {
+                // Mismatch
+                setTimeout(() => {
+                    c1.classList.add('shake');
+                    c2.classList.add('shake');
+                }, 600);
+                
+                setTimeout(() => {
+                    c1.classList.remove('flipped', 'shake');
+                    c2.classList.remove('flipped', 'shake');
+                    state.flipped = [];
+                    state.locked = false;
+                }, 1200);
+            }
+        }
+
+        function endGame() {
+            clearInterval(state.interval);
+            setTimeout(() => {
+                document.getElementById('end-screen').classList.add('active');
+                
+                document.getElementById('end-time').textContent = timeEl.textContent;
+                document.getElementById('end-moves').textContent = state.moves;
+                
+                const pt = document.getElementById('performance-text');
+                if(state.moves <= 10) pt.textContent = "A flawless memory. Perfection.";
+                else if(state.moves <= 16) pt.textContent = "An excellent exhibition of recall.";
+                else pt.textContent = "A completed collection, albeit with some trial and error.";
+
+            }, 1000);
+        }
+
+        // ===== PARTICLES CANVAS (Sparkles) =====
+        const canvas = document.getElementById('sparkle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            const bc = document.getElementById('board-container');
+            canvas.width = bc.offsetWidth;
+            canvas.height = bc.offsetHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function createSparkles(cardElement) {
+            const rect = cardElement.getBoundingClientRect();
+            const bcRect = document.getElementById('board-container').getBoundingClientRect();
+            
+            // Center of card relative to canvas
+            const x = rect.left - bcRect.left + rect.width/2;
+            const y = rect.top - bcRect.top + rect.height/2;
+
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5) * 8, vy: (Math.random()-0.5) * 8 - 4,
+                    life: 1, color: '#D4AF37', size: Math.random() * 3 + 1
+                });
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1; // gravity
+                p.life -= 0.02;
+                
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                ctx.fill();
+                
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+    </script>
+</body>
+</html>
